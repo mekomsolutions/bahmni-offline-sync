@@ -2,8 +2,6 @@ package org.bahmni.module.bahmniOfflineSync.strategy;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,7 +9,6 @@ import java.util.Map;
 import org.bahmni.module.bahmniOfflineSync.eventLog.EventLog;
 import org.ict4h.atomfeed.server.domain.EventRecord;
 import org.openmrs.Concept;
-import org.openmrs.Encounter;
 
 public class AllPatientsSyncStrategy extends AbstractOfflineSyncStrategy {
 
@@ -29,9 +26,9 @@ public class AllPatientsSyncStrategy extends AbstractOfflineSyncStrategy {
 
 		categoryFilterMap.put("patient", filters);
 		categoryFilterMap.put("encounter", filters);
-		categoryFilterMap.put("addressHierarchy", new ArrayList<String>());
-		categoryFilterMap.put("offline-concepts", new ArrayList<String>());
-		categoryFilterMap.put("forms", new ArrayList<>());
+		categoryFilterMap.put("addressHierarchy", filters);
+		categoryFilterMap.put("offline-concepts", filters);
+		categoryFilterMap.put("forms", filters);
 
 		return categoryFilterMap;
 	}

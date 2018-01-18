@@ -91,9 +91,9 @@ public class AllPatientsSyncStrategyTest {
     	
     	assertEquals(expectedFilter, allPatientsSyncStrategy.getFilterForDevice("","","").get("patient"));
     	assertEquals(expectedFilter, allPatientsSyncStrategy.getFilterForDevice("","","").get("encounter"));
-    	assertEquals(new ArrayList<String>(), allPatientsSyncStrategy.getFilterForDevice("","","").get("addressHierarchy"));
-    	assertEquals(new ArrayList<String>(), allPatientsSyncStrategy.getFilterForDevice("","","").get("offline-concepts"));
-    	assertEquals(new ArrayList<String>(), allPatientsSyncStrategy.getFilterForDevice("","","").get("forms"));
+    	assertEquals(expectedFilter, allPatientsSyncStrategy.getFilterForDevice("","","").get("addressHierarchy"));
+    	assertEquals(expectedFilter, allPatientsSyncStrategy.getFilterForDevice("","","").get("offline-concepts"));
+    	assertEquals(expectedFilter, allPatientsSyncStrategy.getFilterForDevice("","","").get("forms"));
         assertEquals(5, allPatientsSyncStrategy.getFilterForDevice("providerUuid", "addressUuid", "locationUuid").size());
     }
 
