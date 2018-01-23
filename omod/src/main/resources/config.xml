@@ -89,5 +89,11 @@
 		<description>Allow Connect app to login via Multiple login locations</description>
 	</globalProperty>
 
+	<globalProperty>
+		<property>bahmniOfflineSync.addressEntriesSyncStrategy.addressEntries</property>
+		<defaultValue></defaultValue>
+		<description>List of "user-generated IDs" of address entries to be used by the AddressEntriesSyncStrategy (in a JSON format)</description>
+	</globalProperty>
+
 </module>
 
