@@ -21,10 +21,12 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
+import org.openmrs.Concept;
+import org.openmrs.ConceptName;
 import org.openmrs.Encounter;
 import org.openmrs.Patient;
 import org.openmrs.api.AdministrationService;
+import org.openmrs.api.ConceptService;
 import org.openmrs.api.EncounterService;
 import org.openmrs.api.LocationService;
 import org.openmrs.api.PatientService;
@@ -51,6 +53,8 @@ public class AddressEntriesSyncStrategyTest {
 	@Mock
 	private EncounterService encounterService;
 	@Mock
+	private ConceptService conceptService;
+	@Mock
 	private PlatformTransactionManager platformTransactionManager;
 	@Mock
 	private AddressHierarchyService addressHierarchyService;
@@ -58,10 +62,15 @@ public class AddressEntriesSyncStrategyTest {
 	private AdministrationService adminService;
 	@Mock
 	private LocationService locationService;
+	
 	private Patient patient;
-	Encounter encounter;
+	private Encounter encounter;
+	private Concept concept;
+	private Concept offlineConcept;
+	
 	private String encounterUuid = "ff17adba-9750-462e-be29-e35091af93df";
 	private String patientUuid = "ff17adba-9750-462e-be29-e35091af93dd";
+	private String conceptUuid = "ff17adba-9750-462e-be29-e35091af93ab";
 
 	private AddressHierarchyEntry europe;
 	private AddressHierarchyEntry france;
@@ -72,15 +81,16 @@ public class AddressEntriesSyncStrategyTest {
 	public void setUp() throws Exception {
 		initMocks(this);
 		PowerMockito.mockStatic(Context.class);
-		Mockito.when(Context.getPatientService()).thenReturn(patientService);
-		Mockito.when(Context.getEncounterService()).thenReturn(encounterService);
-		Mockito.when(Context.getLocationService()).thenReturn(locationService);
-		Mockito.when(Context.getAdministrationService()).thenReturn(adminService);
-		Mockito.when(Context.getService(AddressHierarchyService.class)).thenReturn(addressHierarchyService);
+		when(Context.getPatientService()).thenReturn(patientService);
+		when(Context.getEncounterService()).thenReturn(encounterService);
+		when(Context.getConceptService()).thenReturn(conceptService);
+		when(Context.getLocationService()).thenReturn(locationService);
+		when(Context.getAdministrationService()).thenReturn(adminService);
+		when(Context.getService(AddressHierarchyService.class)).thenReturn(addressHierarchyService);
 
 		List<PlatformTransactionManager> registeredComponents = new ArrayList<PlatformTransactionManager>();
 		registeredComponents.add(platformTransactionManager);
-		Mockito.when(Context.getRegisteredComponents(PlatformTransactionManager.class)).thenReturn(registeredComponents);
+		when(Context.getRegisteredComponents(PlatformTransactionManager.class)).thenReturn(registeredComponents);
 		
 		addressEntriesSyncStrategy = new AddressEntriesSyncStrategy();
 		patient = new Patient();
@@ -89,6 +99,16 @@ public class AddressEntriesSyncStrategyTest {
 		encounter.setPatient(patient);
 		encounter.setUuid(encounterUuid);
 
+		concept = new Concept();
+		concept.setUuid(conceptUuid);
+		
+		// Set the 'Offline Concepts' set and members
+		offlineConcept = new Concept();
+		ConceptName name = new ConceptName();
+		name.setName("Offline Concepts");
+		offlineConcept.setNames(Arrays.asList(name));
+		offlineConcept.addSetMember(concept);
+		
 		// Setup an AH of 4 Address Entries of different levels
 		europe = new AddressHierarchyEntry();
 		AddressHierarchyLevel l1 = new AddressHierarchyLevel();
@@ -144,7 +164,6 @@ public class AddressEntriesSyncStrategyTest {
 
 	@Test
 	public void shouldGetFilterForDevice() {
-
 		ArrayList<String> expectedFilter = new ArrayList<String>();
 		expectedFilter.add(AddressEntriesSyncStrategy.FILTER_UUID);
 
@@ -158,7 +177,6 @@ public class AddressEntriesSyncStrategyTest {
 
 	@Test
 	public void shouldSetFilterForAllEncounters() {
-
 		List<EventRecord> eventRecords = new ArrayList<EventRecord>();
 		EventRecord er = new EventRecord("uuid", "encounter", "", "url/"+ encounterUuid, new Date(), "Encounter");
 		eventRecords.add(er);
@@ -167,7 +185,20 @@ public class AddressEntriesSyncStrategyTest {
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
 		assertEquals(er.getCategory(), eventLogs.get(0).getCategory());
 	}
-
+	
+	@Test
+	public void shouldSetFilterForAllOfflineConcepts() {
+		List<EventRecord> eventRecords = new ArrayList<EventRecord>();
+		EventRecord er = new EventRecord("uuid", "all-concepts", "", "url/"+ conceptUuid, new Date(), "all-concepts");
+		eventRecords.add(er);
+		when(conceptService.getConceptByUuid(conceptUuid)).thenReturn(concept);
+		when(conceptService.getConceptByName("Offline Concepts")).thenReturn(offlineConcept);
+		
+		List<EventLog> eventLogs = addressEntriesSyncStrategy.getEventLogsFromEventRecords(eventRecords);
+		assertEquals(eventRecords.size(), eventLogs.size());
+		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
+		assertEquals("offline-concepts", eventLogs.get(0).getCategory());
+	}
 	@Test
 	public void shouldSetFilterWhenAddressEventExactMatchesGP() {
 		String JSON = updateJSON(Arrays.asList(paris, france));

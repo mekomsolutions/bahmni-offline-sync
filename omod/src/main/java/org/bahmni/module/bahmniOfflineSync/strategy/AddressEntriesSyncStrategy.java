@@ -72,6 +72,7 @@ public class AddressEntriesSyncStrategy extends AbstractOfflineSyncStrategy {
 				if (category.equalsIgnoreCase("all-concepts")) {
 					if (isOfflineConceptEvent(uuid)) {
 						eventLog.setCategory("offline-concepts");
+						filter = evaluateFilterForConcept(uuid);
 					} else {
 						eventLog.setCategory("concepts");
 					}
@@ -98,19 +99,23 @@ public class AddressEntriesSyncStrategy extends AbstractOfflineSyncStrategy {
 		return offlineConcept != null && offlineConcept.getSetMembers().contains(concept);
 	}
 
-	protected String evaluateFilterForPatient(String uuid) {
+	protected String evaluateFilterForPatient(String patientUuid) {
 		return FILTER_UUID;
 	}
 
-	private String evaluateFilterForEncounter(String uuid) {
+	private String evaluateFilterForEncounter(String encounterUuid) {
 		return FILTER_UUID;
 	}
 
-	private String evaluateFilterForAddressHierarchy(String uuid) {
+	private String evaluateFilterForConcept(String conceptUuid) {
+		return FILTER_UUID;
+	}
+	
+	private String evaluateFilterForAddressHierarchy(String addressEntryUuid) {
 		String eventFilter = null;
 
 		AddressHierarchyService addressHierarchyService = Context.getService(AddressHierarchyService.class);
-		AddressHierarchyEntry addressEntryFromEvent = addressHierarchyService.getAddressHierarchyEntryByUuid(uuid);
+		AddressHierarchyEntry addressEntryFromEvent = addressHierarchyService.getAddressHierarchyEntryByUuid(addressEntryUuid);
 
 		ObjectMapper mapper = new ObjectMapper();
 		AdministrationService admniService = Context.getAdministrationService();
