@@ -11,11 +11,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import org.bahmni.module.bahmniOfflineSync.eventLog.EventLog;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.ict4h.atomfeed.server.domain.EventRecord;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -62,12 +64,12 @@ public class AddressEntriesSyncStrategyTest {
 	private AdministrationService adminService;
 	@Mock
 	private LocationService locationService;
-	
+
 	private Patient patient;
 	private Encounter encounter;
 	private Concept concept;
 	private Concept offlineConcept;
-	
+
 	private String encounterUuid = "ff17adba-9750-462e-be29-e35091af93df";
 	private String patientUuid = "ff17adba-9750-462e-be29-e35091af93dd";
 	private String conceptUuid = "ff17adba-9750-462e-be29-e35091af93ab";
@@ -76,7 +78,7 @@ public class AddressEntriesSyncStrategyTest {
 	private AddressHierarchyEntry france;
 	private AddressHierarchyEntry paris;
 	private AddressHierarchyEntry champsElysees;
-	
+
 	@Before
 	public void setUp() throws Exception {
 		initMocks(this);
@@ -91,7 +93,7 @@ public class AddressEntriesSyncStrategyTest {
 		List<PlatformTransactionManager> registeredComponents = new ArrayList<PlatformTransactionManager>();
 		registeredComponents.add(platformTransactionManager);
 		when(Context.getRegisteredComponents(PlatformTransactionManager.class)).thenReturn(registeredComponents);
-		
+
 		addressEntriesSyncStrategy = new AddressEntriesSyncStrategy();
 		patient = new Patient();
 		patient.setUuid(patientUuid);
@@ -101,14 +103,14 @@ public class AddressEntriesSyncStrategyTest {
 
 		concept = new Concept();
 		concept.setUuid(conceptUuid);
-		
+
 		// Set the 'Offline Concepts' set and members
 		offlineConcept = new Concept();
 		ConceptName name = new ConceptName();
 		name.setName("Offline Concepts");
 		offlineConcept.setNames(Arrays.asList(name));
 		offlineConcept.addSetMember(concept);
-		
+
 		// Setup an AH of 4 Address Entries of different levels
 		europe = new AddressHierarchyEntry();
 		AddressHierarchyLevel l1 = new AddressHierarchyLevel();
@@ -118,7 +120,7 @@ public class AddressEntriesSyncStrategyTest {
 		europe.setId(1);
 		europe.setUserGeneratedId("763f4c7b-01a0-4f7c-8d7c-b8b620f2bab5");
 		europe.setUuid("cb9483eb-c125-4dcf-a215-db88d6e4c59e");
-		
+
 		france = new AddressHierarchyEntry();
 		AddressHierarchyLevel l2 = new AddressHierarchyLevel();
 		l2.setLevelId(2);
@@ -185,7 +187,15 @@ public class AddressEntriesSyncStrategyTest {
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
 		assertEquals(er.getCategory(), eventLogs.get(0).getCategory());
 	}
-	
+
+	@Test
+	public void shouldNotSetFilterForOtherCategories() {
+		List<EventRecord> eventRecords = new ArrayList<EventRecord>();
+		EventRecord er = new EventRecord("uuid", "lab", "", "url/"+ encounterUuid, new Date(), "lab");
+		eventRecords.add(er);
+		List<EventLog> eventLogs = addressEntriesSyncStrategy.getEventLogsFromEventRecords(eventRecords);
+		assertEquals(0, eventLogs.size());
+	}
 	@Test
 	public void shouldSetFilterForAllOfflineConcepts() {
 		List<EventRecord> eventRecords = new ArrayList<EventRecord>();
@@ -193,7 +203,7 @@ public class AddressEntriesSyncStrategyTest {
 		eventRecords.add(er);
 		when(conceptService.getConceptByUuid(conceptUuid)).thenReturn(concept);
 		when(conceptService.getConceptByName("Offline Concepts")).thenReturn(offlineConcept);
-		
+
 		List<EventLog> eventLogs = addressEntriesSyncStrategy.getEventLogsFromEventRecords(eventRecords);
 		assertEquals(eventRecords.size(), eventLogs.size());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
@@ -214,7 +224,7 @@ public class AddressEntriesSyncStrategyTest {
 		String JSON = updateJSON(Arrays.asList(paris, france));
 		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
 
-		String champsFilter = setupEventLogsAndFilters(JSON).get(3).getFilter();
+		String champsFilter = setupEventLogsAndFilters(JSON).get(2).getFilter();
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, champsFilter);
 	}
 
@@ -223,15 +233,19 @@ public class AddressEntriesSyncStrategyTest {
 		String JSON = updateJSON(Arrays.asList(paris, france));
 		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
 
-		String europeFilter = setupEventLogsAndFilters(JSON).get(0).getFilter();
-		assertEquals(null, europeFilter);
+		List<EventLog> eventLogs = setupEventLogsAndFilters(JSON);
+		assertEquals(3, eventLogs.size());
+		assertEquals("c2c391e0-6498-42b5-a0ae-bdc68043d850", eventLogs.get(0).getUuid());
+		assertEquals("f3e01b12-75cc-4894-8fa1-1ea9e65315e7", eventLogs.get(1).getUuid());
+		assertEquals("f2e07f7b-88dd-4609-afcb-b106f5238671", eventLogs.get(2).getUuid());
+
 	}
-	
+
 	@Test
 	public void shouldSetFilterOnAllLocationsWhenGPIsEmptyOrNull() {
-		
+
 		List<EventLog> eventLogs = new ArrayList<>();
-				
+
 		when(adminService.getGlobalProperty(any())).thenReturn(null);
 		eventLogs = setupEventLogsAndFilters(null);
 
@@ -239,30 +253,68 @@ public class AddressEntriesSyncStrategyTest {
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(1).getFilter());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(2).getFilter());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(3).getFilter());
-		
+
 		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn("");
 		eventLogs = setupEventLogsAndFilters("");
-		
+
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(1).getFilter());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(2).getFilter());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(3).getFilter());
-		
+
 	}
-	
+
 
 	@Test
-	public void shouldHandleUsergGeneratedIdOnlyGP() {
-		
+	public void shouldHandleUserGeneratedIdOnlyGP() {
+
 		String JSON = "[{\"userGeneratedId\":\"107e1300-c946-481d-88bd-8062f8c20f83\"},{\"userGeneratedId\":\"9f120e7d-9da6-4756-9b40-5c13a257318c\"}]";
 		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
-		
+
 		List<EventLog> eventLogs = setupEventLogsAndFilters(JSON);
-		assertEquals(null, eventLogs.get(0).getFilter());
+
+		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(1).getFilter());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(2).getFilter());
-		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(3).getFilter());
-		
+
+	}
+
+	@Ignore
+	@Test
+	public void shouldHandleNumerousEntries() {
+
+		String JSON = "[{\"userGeneratedId\":\"763f4c7b-01a0-4f7c-8d7c-b8b620f2bab5\"}]";
+		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
+
+		List<EventRecord> eventRecords = createThousandsOfEvents();
+		List<EventLog> eventLogs = addressEntriesSyncStrategy.getEventLogsFromEventRecords(eventRecords);
+
+		assertEquals(eventRecords.size(), eventLogs.size());
+
+	}
+
+	private List<EventRecord> createThousandsOfEvents() {
+		List<EventRecord> eventRecords = new ArrayList<EventRecord>();
+		for (int j = 0; j < 5000;j++){
+
+			String addressEntryUuid = UUID.randomUUID().toString();
+
+			AddressHierarchyEntry mockAddress = new AddressHierarchyEntry();
+			AddressHierarchyLevel l1 = new AddressHierarchyLevel();
+			l1.setLevelId(1);
+			mockAddress.setLevel(l1);
+			mockAddress.setName("");
+			mockAddress.setId(1);
+			mockAddress.setUserGeneratedId("763f4c7b-01a0-4f7c-8d7c-b8b620f2bab5");
+			mockAddress.setUuid(addressEntryUuid);
+
+			EventRecord er  = new EventRecord("UUID.randomUUID()","address","","url/"+ addressEntryUuid, new Date(),"addressHierarchy");
+			eventRecords.add(er);
+
+			when(addressHierarchyService.getAddressHierarchyEntryByUserGenId(mockAddress.getUserGeneratedId())).thenReturn(mockAddress);
+			when(addressHierarchyService.getAddressHierarchyEntryByUuid(mockAddress.getUuid())).thenReturn(mockAddress);
+		}
+		return eventRecords;
 	}
 
 	private String updateJSON(List<AddressHierarchyEntry> addresses) {
@@ -286,16 +338,16 @@ public class AddressEntriesSyncStrategyTest {
 		when(addressHierarchyService.getAddressHierarchyEntryByUuid(france.getUuid())).thenReturn(france);
 		when(addressHierarchyService.getAddressHierarchyEntryByUuid(paris.getUuid())).thenReturn(paris);
 		when(addressHierarchyService.getAddressHierarchyEntryByUuid(champsElysees.getUuid())).thenReturn(champsElysees);
-		
+
 		when(addressHierarchyService.getAddressHierarchyEntryByUserGenId(europe.getUserGeneratedId())).thenReturn(europe);
 		when(addressHierarchyService.getAddressHierarchyEntryByUserGenId(france.getUserGeneratedId())).thenReturn(france);
 		when(addressHierarchyService.getAddressHierarchyEntryByUserGenId(paris.getUserGeneratedId())).thenReturn(paris);
 		when(addressHierarchyService.getAddressHierarchyEntryByUserGenId(champsElysees.getUserGeneratedId())).thenReturn(champsElysees);
 
-		EventRecord erEurope  = new EventRecord("uuid","address","","url/"+ europe.getUuid(),new Date(),"addressHierarchy");
-		EventRecord erFrance  = new EventRecord("uuid","address","","url/"+ france.getUuid(),new Date(),"addressHierarchy");
-		EventRecord erParis  = new EventRecord("uuid","address","","url/"+ paris.getUuid(),new Date(),"addressHierarchy");
-		EventRecord erChamps  = new EventRecord("uuid","address","","url/"+ champsElysees.getUuid(),new Date(),"addressHierarchy");
+		EventRecord erEurope  = new EventRecord("0e167821-6681-4ab9-93d9-efa08cac27a6","address","","url/"+ europe.getUuid(),new Date(),"addressHierarchy");
+		EventRecord erFrance  = new EventRecord("c2c391e0-6498-42b5-a0ae-bdc68043d850","address","","url/"+ france.getUuid(),new Date(),"addressHierarchy");
+		EventRecord erParis  = new EventRecord("f3e01b12-75cc-4894-8fa1-1ea9e65315e7","address","","url/"+ paris.getUuid(),new Date(),"addressHierarchy");
+		EventRecord erChamps  = new EventRecord("f2e07f7b-88dd-4609-afcb-b106f5238671","address","","url/"+ champsElysees.getUuid(),new Date(),"addressHierarchy");
 
 		eventRecords.add(erEurope);
 		eventRecords.add(erFrance);

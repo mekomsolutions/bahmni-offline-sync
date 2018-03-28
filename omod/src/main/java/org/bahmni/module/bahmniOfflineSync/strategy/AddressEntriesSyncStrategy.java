@@ -85,9 +85,10 @@ public class AddressEntriesSyncStrategy extends AbstractOfflineSyncStrategy {
 				else if (category.equalsIgnoreCase("addressHierarchy"))
 					filter = evaluateFilterForAddressHierarchy(uuid);
 			}
-			eventLog.setFilter(filter);
-
-			eventLogs.add(eventLog);
+			if (filter != null) {
+				eventLog.setFilter(filter);
+				eventLogs.add(eventLog);
+			}
 		}
 
 		return eventLogs;
@@ -110,7 +111,7 @@ public class AddressEntriesSyncStrategy extends AbstractOfflineSyncStrategy {
 	private String evaluateFilterForConcept(String conceptUuid) {
 		return FILTER_UUID;
 	}
-	
+
 	private String evaluateFilterForAddressHierarchy(String addressEntryUuid) {
 		String eventFilter = null;
 
@@ -133,17 +134,15 @@ public class AddressEntriesSyncStrategy extends AbstractOfflineSyncStrategy {
 				for (AddressHierarchyEntry entry : addressEntriesToSync ) {
 					if (entry.getUserGeneratedId() == null) {
 						log.error(entry.getName() + "/" + entry.getUuid() 
-								+ " does not have a user-generated ID set. A 'User-generated ID' is needed by "
-								+ this.getClass().getSimpleName() + " in order to retrieve the address events to be synced");
+						+ " does not have a user-generated ID set. A 'User-generated ID' is needed by "
+						+ this.getClass().getSimpleName() + " in order to retrieve the address events to be synced");
 					}
-					// AdressEntries are quite empty. Retrieving the full objects
-					entry = addressHierarchyService.getAddressHierarchyEntryByUserGenId(entry.getUserGeneratedId());
-					if (addressEntryFromEvent.getId().equals(entry.getId())) {
+					if (addressEntryFromEvent.getUserGeneratedId().equals(entry.getUserGeneratedId())) {
 						eventFilter = FILTER_UUID;
 					} else {
 						AddressHierarchyEntry parent = addressEntryFromEvent.getParent();
 						while (parent != null) {
-							if (entry.getId().equals(parent.getId())) {
+							if (entry.getUserGeneratedId().equals(parent.getUserGeneratedId())) {
 								eventFilter = FILTER_UUID;
 							}
 							parent = parent.getParent();
