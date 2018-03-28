@@ -85,9 +85,7 @@ public class AddressEntriesSyncStrategy extends AbstractOfflineSyncStrategy {
 				else if (category.equalsIgnoreCase("addressHierarchy"))
 					filter = evaluateFilterForAddressHierarchy(uuid);
 			}
-			if (filter != null) {
-				eventLog.setFilter(filter);	
-			}
+			eventLog.setFilter(filter);	
 			eventLogs.add(eventLog);
 		}
 
@@ -118,42 +116,45 @@ public class AddressEntriesSyncStrategy extends AbstractOfflineSyncStrategy {
 		AddressHierarchyService addressHierarchyService = Context.getService(AddressHierarchyService.class);
 		AddressHierarchyEntry addressEntryFromEvent = addressHierarchyService.getAddressHierarchyEntryByUuid(addressEntryUuid);
 
-		ObjectMapper mapper = new ObjectMapper();
-		AdministrationService admniService = Context.getAdministrationService();
-		String entriesToSyncAsJSON = admniService.getGlobalProperty(ADDRESS_ENTRIES_GP_NAME);
-		if (entriesToSyncAsJSON == null) {
-			log.error(ADDRESS_ENTRIES_GP_NAME + " is not found. Please set this Global Property value when using the " + this.getClass().getSimpleName());
-			eventFilter = FILTER_UUID;
-		} else if (entriesToSyncAsJSON == "") {
-			log.warn(ADDRESS_ENTRIES_GP_NAME + " is emtpy. Syncing all locations...");
-			eventFilter = FILTER_UUID;
+		if (addressEntryFromEvent.getUserGeneratedId() == null) {
+			log.warn("Address " + addressEntryFromEvent.getName() + " does not have a UserGeneratedId set. Skipping this entry...");
 		} else {
-			List<AddressHierarchyEntry> addressEntriesToSync = null;
-			try {
-				addressEntriesToSync = mapper.readValue(entriesToSyncAsJSON, mapper.getTypeFactory().constructCollectionType(List.class, AddressHierarchyEntry.class));
-				for (AddressHierarchyEntry entry : addressEntriesToSync ) {
-					if (entry.getUserGeneratedId() == null) {
-						log.error(entry.getName() + "/" + entry.getUuid() 
-						+ " does not have a user-generated ID set. A 'User-generated ID' is needed by "
-						+ this.getClass().getSimpleName() + " in order to retrieve the address events to be synced");
-					}
-					if (addressEntryFromEvent.getUserGeneratedId().equals(entry.getUserGeneratedId())) {
-						eventFilter = FILTER_UUID;
-					} else {
-						AddressHierarchyEntry parent = addressEntryFromEvent.getParent();
-						while (parent != null) {
-							if (entry.getUserGeneratedId().equals(parent.getUserGeneratedId())) {
-								eventFilter = FILTER_UUID;
+			ObjectMapper mapper = new ObjectMapper();
+			AdministrationService admniService = Context.getAdministrationService();
+			String entriesToSyncAsJSON = admniService.getGlobalProperty(ADDRESS_ENTRIES_GP_NAME);
+			if (entriesToSyncAsJSON == null) {
+				log.error(ADDRESS_ENTRIES_GP_NAME + " is not found. Please set this Global Property value when using the " + this.getClass().getSimpleName());
+				eventFilter = FILTER_UUID;
+			} else if (entriesToSyncAsJSON == "") {
+				log.warn(ADDRESS_ENTRIES_GP_NAME + " is emtpy. Syncing all locations...");
+				eventFilter = FILTER_UUID;
+			} else {
+				List<AddressHierarchyEntry> addressEntriesToSync = null;
+				try {
+					addressEntriesToSync = mapper.readValue(entriesToSyncAsJSON, mapper.getTypeFactory().constructCollectionType(List.class, AddressHierarchyEntry.class));
+					for (AddressHierarchyEntry entry : addressEntriesToSync ) {
+						if (entry.getUserGeneratedId() == null) {
+							log.error(entry.getName() + "/" + entry.getUuid() 
+							+ " does not have a user-generated ID set. A 'User-generated ID' is needed by "
+							+ this.getClass().getSimpleName() + " in order to retrieve the address events to be synced");
+						}
+						if (addressEntryFromEvent.getUserGeneratedId().equals(entry.getUserGeneratedId())) {
+							eventFilter = FILTER_UUID;
+						} else {
+							AddressHierarchyEntry parent = addressEntryFromEvent.getParent();
+							while (parent != null) {
+								if (entry.getUserGeneratedId().equals(parent.getUserGeneratedId())) {
+									eventFilter = FILTER_UUID;
+								}
+								parent = parent.getParent();
 							}
-							parent = parent.getParent();
 						}
 					}
+				} catch (IOException e) {
+					log.error("Unable to convert global property to Java object", e);
+					log.error("Global Property: "+ ADDRESS_ENTRIES_GP_NAME + " Value:" + admniService.getGlobalProperty(ADDRESS_ENTRIES_GP_NAME));
 				}
-			} catch (IOException e) {
-				log.error("Unable to convert global property to Java object", e);
-				log.error("Global Property: "+ ADDRESS_ENTRIES_GP_NAME + " Value:" + admniService.getGlobalProperty(ADDRESS_ENTRIES_GP_NAME));
 			}
-
 		}
 		return eventFilter;
 	}
