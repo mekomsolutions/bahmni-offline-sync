@@ -6,7 +6,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.MockitoAnnotations.initMocks;
 import static org.powermock.api.mockito.PowerMockito.when;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -14,7 +13,6 @@ import java.util.List;
 import java.util.UUID;
 
 import org.bahmni.module.bahmniOfflineSync.eventLog.EventLog;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.ict4h.atomfeed.server.domain.EventRecord;
 import org.junit.Before;
 import org.junit.Rule;
@@ -77,6 +75,8 @@ public class AddressEntriesSyncStrategyTest {
 	private AddressHierarchyEntry france;
 	private AddressHierarchyEntry paris;
 	private AddressHierarchyEntry champsElysees;
+	private AddressHierarchyEntry germany;
+	private AddressHierarchyEntry berlin;
 
 	@Before
 	public void setUp() throws Exception {
@@ -116,7 +116,6 @@ public class AddressEntriesSyncStrategyTest {
 		l1.setLevelId(1);
 		europe.setLevel(l1);
 		europe.setName("Europe");
-		europe.setId(1);
 		europe.setUserGeneratedId("01");
 		europe.setUuid("cb9483eb-c125-4dcf-a215-db88d6e4c59e");
 
@@ -126,7 +125,6 @@ public class AddressEntriesSyncStrategyTest {
 		france.setLevel(l2);
 		france.setName("France");
 		france.setParent(europe);
-		france.setId(2);
 		france.setUserGeneratedId("0101");
 		france.setUuid("8b3f02f2-d4fc-442f-9d74-ce73605106ab");
 
@@ -136,7 +134,6 @@ public class AddressEntriesSyncStrategyTest {
 		paris.setLevel(l3);
 		paris.setName("Paris");
 		paris.setParent(france);
-		paris.setId(3);
 		paris.setUserGeneratedId("010101");
 		paris.setUuid("6eba31d7-2048-4c53-a466-43848fb50c66");
 
@@ -146,9 +143,24 @@ public class AddressEntriesSyncStrategyTest {
 		champsElysees.setLevel(l4);
 		champsElysees.setName("Champs-Elysées");
 		champsElysees.setParent(paris);
-		champsElysees.setId(4);
 		champsElysees.setUserGeneratedId("01010101");
 		champsElysees.setUuid("9b4b8b13-ed65-4b98-a158-c1c78d7da6ed");
+
+		germany = new AddressHierarchyEntry();
+		l2.setLevelId(2);
+		germany.setLevel(l2);
+		germany.setName("Germany");
+		germany.setParent(europe);
+		germany.setUserGeneratedId("0102");
+		germany.setUuid("9b231a83-8f31-45ec-9ef7-1baa468002ee");
+
+		berlin = new AddressHierarchyEntry();
+		l3.setLevelId(3);
+		berlin.setLevel(l3);
+		berlin.setName("Berlin");
+		berlin.setParent(germany);
+		berlin.setUserGeneratedId("010201");
+		berlin.setUuid("3edaa90f-9409-438d-9b66-d40b82310ec4");
 
 	}
 
@@ -194,7 +206,9 @@ public class AddressEntriesSyncStrategyTest {
 		eventRecords.add(er);
 		List<EventLog> eventLogs = addressEntriesSyncStrategy.getEventLogsFromEventRecords(eventRecords);
 		assertEquals(1, eventLogs.size());
+		assertEquals(null, eventLogs.get(0).getFilter());
 	}
+
 	@Test
 	public void shouldSetFilterForAllOfflineConcepts() {
 		List<EventRecord> eventRecords = new ArrayList<EventRecord>();
@@ -208,10 +222,11 @@ public class AddressEntriesSyncStrategyTest {
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
 		assertEquals("offline-concepts", eventLogs.get(0).getCategory());
 	}
+
 	@Test
 	public void shouldSetFilterWhenAddressEventExactMatchesGP() {
-		String JSON = updateJSON(Arrays.asList(paris, france));
-		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
+		String globalPropertyAsJSON = "[{\"userGeneratedId\":\"010101\"}, {\"userGeneratedId\":\"0101\"}]";
+		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(globalPropertyAsJSON);
 
 		List<EventLog> eventLogs = setupEventLogsAndFilters(europe, france, paris, champsElysees);
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(1).getFilter());
@@ -220,21 +235,11 @@ public class AddressEntriesSyncStrategyTest {
 
 	@Test
 	public void shouldSetFilterWhenAddressEventIsChildOfAnAddressInGP() {
-		String JSON = updateJSON(Arrays.asList(paris, france));
-		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
+		String globalPropertyAsJSON = "[{\"userGeneratedId\":\"010101\"}, {\"userGeneratedId\":\"0101\"}]";
+		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(globalPropertyAsJSON);
 
 		String champsFilter = setupEventLogsAndFilters(europe, france, paris, champsElysees).get(2).getFilter();
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, champsFilter);
-	}
-
-	@Test
-	public void shouldNotSetFilterWhenAddressEventIsNotInGP() {
-		String JSON = updateJSON(Arrays.asList(paris, france));
-		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
-
-		List<EventLog> eventLogs = setupEventLogsAndFilters(europe, france, paris, champsElysees);
-		String europeFilter = setupEventLogsAndFilters(europe, france, paris, champsElysees).get(0).getFilter();
-		assertEquals(null, europeFilter);
 	}
 
 	@Test
@@ -260,24 +265,10 @@ public class AddressEntriesSyncStrategyTest {
 	}
 
 	@Test
-	public void shouldHandleUserGeneratedIdOnlyGP() {
-
-		String JSON = "[{\"userGeneratedId\":\"0101\"},{\"userGeneratedId\":\"010101\"}]";
-		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
-
-		List<EventLog> eventLogs = setupEventLogsAndFilters(europe, france, paris, champsElysees);
-
-		assertEquals(null, eventLogs.get(0).getFilter());
-		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(1).getFilter());
-		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(2).getFilter());
-		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(3).getFilter());
-	}
-
-	@Test
 	public void shouldNotFailWhenAddressHasNoUserGenId() {
 
-		String JSON = "";
-		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
+		String globalPropertyAsJSON = "";
+		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(globalPropertyAsJSON);
 
 		// Create a corrupted address with no UserGeneratedId set
 		AddressHierarchyEntry noUserGenIdAddress = new AddressHierarchyEntry();
@@ -292,39 +283,32 @@ public class AddressEntriesSyncStrategyTest {
 	}
 
 	@Test
-	public void shouldSetFiltersForChildrenEntries() {
+	public void shouldSetFiltersForChildrenAndParentsOfAnEntry() {
 
-		String JSON = "[{\"userGeneratedId\":\"0101\"}]";
-		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
+		String globalPropertyAsJSON = "[{\"userGeneratedId\":\"010101\"}]";
+		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(globalPropertyAsJSON);
 
-		List<EventLog> eventLogs = setupEventLogsAndFilters(europe, france, paris, champsElysees);
+		List<EventLog> eventLogs = setupEventLogsAndFilters(europe, france, paris, champsElysees, berlin, germany);
 
-		assertEquals(null, eventLogs.get(0).getFilter());
+		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(1).getFilter());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(2).getFilter());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(3).getFilter());
-		
-		JSON = "[{\"userGeneratedId\":\"010101\"}]";
-		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(JSON);
+		assertEquals(null, eventLogs.get(4).getFilter());
+		assertEquals(null, eventLogs.get(5).getFilter());
 
-		eventLogs = setupEventLogsAndFilters(europe, france, paris, champsElysees);
+		globalPropertyAsJSON = "[{\"userGeneratedId\":\"010201\"}]";
+		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.ADDRESS_ENTRIES_GP_NAME)).thenReturn(globalPropertyAsJSON);
 
-		assertEquals(null, eventLogs.get(0).getFilter());
+		eventLogs = setupEventLogsAndFilters(europe, france, paris, champsElysees, berlin, germany);
+
+		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
 		assertEquals(null, eventLogs.get(1).getFilter());
-		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(2).getFilter());
-		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(3).getFilter());
-	}
+		assertEquals(null, eventLogs.get(2).getFilter());
+		assertEquals(null, eventLogs.get(3).getFilter());
+		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(4).getFilter());
+		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(5).getFilter());
 
-	private String updateJSON(List<AddressHierarchyEntry> addresses) {
-		String addressesToMatchAsJSON = "";
-		ObjectMapper mapper = new ObjectMapper();
-		try {
-			addressesToMatchAsJSON = mapper.writeValueAsString(addresses);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-		return addressesToMatchAsJSON;
 	}
 
 	private List<EventLog> setupEventLogsAndFilters(AddressHierarchyEntry... addresses) {

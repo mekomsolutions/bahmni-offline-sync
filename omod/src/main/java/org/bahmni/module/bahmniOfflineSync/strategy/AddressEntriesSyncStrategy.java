@@ -132,22 +132,16 @@ public class AddressEntriesSyncStrategy extends AbstractOfflineSyncStrategy {
 				List<AddressHierarchyEntry> addressEntriesToSync = null;
 				try {
 					addressEntriesToSync = mapper.readValue(entriesToSyncAsJSON, mapper.getTypeFactory().constructCollectionType(List.class, AddressHierarchyEntry.class));
-					for (AddressHierarchyEntry entry : addressEntriesToSync ) {
-						if (entry.getUserGeneratedId() == null) {
-							log.error(entry.getName() + "/" + entry.getUuid() 
+					for (AddressHierarchyEntry entryFromGP : addressEntriesToSync ) {
+						if (entryFromGP.getUserGeneratedId() == null) {
+							log.error(entryFromGP.getName() + "/" + entryFromGP.getUuid() 
 							+ " does not have a user-generated ID set. A 'User-generated ID' is needed by "
 							+ this.getClass().getSimpleName() + " in order to retrieve the address events to be synced");
 						}
-						if (addressEntryFromEvent.getUserGeneratedId().equals(entry.getUserGeneratedId())) {
+						if (addressEntryFromEvent.getUserGeneratedId().startsWith(entryFromGP.getUserGeneratedId())) {
 							eventFilter = FILTER_UUID;
-						} else {
-							AddressHierarchyEntry parent = addressEntryFromEvent.getParent();
-							while (parent != null) {
-								if (entry.getUserGeneratedId().equals(parent.getUserGeneratedId())) {
-									eventFilter = FILTER_UUID;
-								}
-								parent = parent.getParent();
-							}
+						} else if (entryFromGP.getUserGeneratedId().startsWith(addressEntryFromEvent.getUserGeneratedId())) {
+							eventFilter = FILTER_UUID;
 						}
 					}
 				} catch (IOException e) {
