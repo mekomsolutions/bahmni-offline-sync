@@ -86,9 +86,9 @@ public class AddressEntriesSyncStrategy extends AbstractOfflineSyncStrategy {
 					filter = evaluateFilterForAddressHierarchy(uuid);
 			}
 			if (filter != null) {
-				eventLog.setFilter(filter);
-				eventLogs.add(eventLog);
+				eventLog.setFilter(filter);	
 			}
+			eventLogs.add(eventLog);
 		}
 
 		return eventLogs;
