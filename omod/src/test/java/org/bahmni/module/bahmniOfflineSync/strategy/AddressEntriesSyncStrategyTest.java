@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.openmrs.Concept;
 import org.openmrs.ConceptName;
 import org.openmrs.Encounter;
+import org.openmrs.Location;
 import org.openmrs.Patient;
 import org.openmrs.api.AdministrationService;
 import org.openmrs.api.ConceptService;
@@ -189,16 +190,70 @@ public class AddressEntriesSyncStrategyTest {
 	}
 
 	@Test
-	public void shouldSetFilterForAllEncounters() {
+	public void shouldSetFilterForEncountersWhenLocationMatchesGP() {
 		List<EventRecord> eventRecords = new ArrayList<EventRecord>();
 		EventRecord er = new EventRecord("uuid", "encounter", "", "url/"+ encounterUuid, new Date(), "Encounter");
 		eventRecords.add(er);
+		
+		String globalPropertyAsJSON = "[{\"uuid\":\"58efb463-ce0b-42c4-b18b-2f5aeb656921\"}, {\"uuid\":\"6d46c260-19e3-4ad9-b3ed-b4a4abf2380c\"}]";
+		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.LOCATIONS_GP_NAME)).thenReturn(globalPropertyAsJSON);
+		when(encounterService.getEncounterByUuid(encounterUuid)).thenReturn(encounter);
+		Location clinic1 = new Location();
+		clinic1.setUuid("58efb463-ce0b-42c4-b18b-2f5aeb656921");
+		encounter.setLocation(clinic1);
+		
 		List<EventLog> eventLogs = addressEntriesSyncStrategy.getEventLogsFromEventRecords(eventRecords);
 		assertEquals(eventRecords.size(), eventLogs.size());
 		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
 		assertEquals(er.getCategory(), eventLogs.get(0).getCategory());
 	}
 
+	@Test
+	public void shouldNotSetFilterForEncounters() {
+		List<EventRecord> eventRecords = new ArrayList<EventRecord>();
+		EventRecord er = new EventRecord("uuid", "encounter", "", "url/"+ encounterUuid, new Date(), "Encounter");
+		eventRecords.add(er);
+		
+		String globalPropertyAsJSON = "[{\"uuid\":\"58efb463-ce0b-42c4-b18b-2f5aeb656921\"}, {\"uuid\":\"6d46c260-19e3-4ad9-b3ed-b4a4abf2380c\"}]";
+		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.LOCATIONS_GP_NAME)).thenReturn(globalPropertyAsJSON);
+		when(encounterService.getEncounterByUuid(encounterUuid)).thenReturn(encounter);
+		Location clinic1 = new Location();
+		clinic1.setUuid("8068fbda-3186-40dd-8691-033b5af5b1b9");
+		encounter.setLocation(clinic1);
+		
+		List<EventLog> eventLogs = addressEntriesSyncStrategy.getEventLogsFromEventRecords(eventRecords);
+		assertEquals(eventRecords.size(), eventLogs.size());
+		assertEquals(null, eventLogs.get(0).getFilter());
+	}
+	
+	@Test
+	public void shouldSetFilterOnAllEncountersWhenGPIsEmptyOrNull() {
+		List<EventRecord> eventRecords = new ArrayList<EventRecord>();
+		EventRecord er = new EventRecord("uuid", "encounter", "", "url/"+ encounterUuid, new Date(), "Encounter");
+		eventRecords.add(er);
+		
+		// Set an empty GP
+		String globalPropertyAsJSON = "";
+		when(adminService.getGlobalProperty(AddressEntriesSyncStrategy.LOCATIONS_GP_NAME)).thenReturn(globalPropertyAsJSON);
+		when(encounterService.getEncounterByUuid(encounterUuid)).thenReturn(encounter);
+		Location clinic1 = new Location();
+		clinic1.setUuid("8068fbda-3186-40dd-8691-033b5af5b1b9");
+		encounter.setLocation(clinic1);
+		
+		List<EventLog> eventLogs = addressEntriesSyncStrategy.getEventLogsFromEventRecords(eventRecords);
+		assertEquals(eventRecords.size(), eventLogs.size());
+		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
+		assertEquals(er.getCategory(), eventLogs.get(0).getCategory());
+		
+		// Set a null GP
+		globalPropertyAsJSON = null;
+		eventLogs = addressEntriesSyncStrategy.getEventLogsFromEventRecords(eventRecords);
+		assertEquals(eventRecords.size(), eventLogs.size());
+		assertEquals(AddressEntriesSyncStrategy.FILTER_UUID, eventLogs.get(0).getFilter());
+		assertEquals(er.getCategory(), eventLogs.get(0).getCategory());
+	
+	}
+	
 	@Test
 	public void shouldNotSetFilterForOtherCategories() {
 		List<EventRecord> eventRecords = new ArrayList<EventRecord>();
@@ -243,7 +298,7 @@ public class AddressEntriesSyncStrategyTest {
 	}
 
 	@Test
-	public void shouldSetFilterOnAllLocationsWhenGPIsEmptyOrNull() {
+	public void shouldSetFilterOnAllAddressesWhenGPIsEmptyOrNull() {
 
 		List<EventLog> eventLogs = new ArrayList<>();
 
